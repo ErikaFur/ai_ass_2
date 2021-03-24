@@ -140,7 +140,7 @@ def check_which_better():
         histogram1 = cv2.calcHist([gray_image1], [0],
                                   None, [256], [0, 256])
 
-        c1, c2 = 0, 0
+        c1 = 0
         i = 0
         while i < len(histogram) and i < len(histogram1):
             c1 += (histogram[i] - histogram1[i]) ** 2
@@ -149,11 +149,31 @@ def check_which_better():
         output_arr = np.append(output_arr, c1)
     return output_arr
 
+def check_crop():
+    image = cv2.imread(f"./output/crop.png")
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    histogram = cv2.calcHist([gray_image], [0],
+                             None, [256], [0, 256])
+    image = cv2.imread('./output/apr_crop.png')
+    gray_image1 = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    histogram1 = cv2.calcHist([gray_image1], [0],
+                              None, [256], [0, 256])
+
+    c1 = 0
+    i = 0
+    while i < len(histogram) and i < len(histogram1):
+        c1 += (histogram[i] - histogram1[i]) ** 2
+        i += 1
+    c1 = c1 ** (1 / 2)
+    return c1
+
 if __name__ == '__main__':
+    create_apr_crop(20,16)
     z = check_which_better()
     print(z)
-    print(z.argmin(),z.min())
-    print(z.argmax(), z.max())
+    print(z.argmin()+1,z.min())
+    print(z.argmax()+1, z.max())
+    print(check_crop())
     #create_crop(2,4)
     #create_apr_crop(0,0)
     #random_placing(2000).save("./output/outputr.png")
@@ -168,3 +188,33 @@ if __name__ == '__main__':
     #print(arr)
     #arr = np.array([[[22, 10, 22],[ 8, 17, 25],[35, 32,  5]],[[35,  6,  6,],[25,27, 19],[29, 15,  2]]])
 
+"""
+def check_which_better_from_re_img():
+    output_arr = np.array([])
+    images_amount = len(listdir('./resized_images'))
+    for i in range(1,images_amount+1):
+        image1 = cv2.imread(f"./resized_images/{i}.png")
+        image2 = cv2.imread('./output/apr_crop.png')
+
+        err = np.sum((image1.astype("float") - image2.astype("float")) ** 2)
+        err /= float(image1.shape[0] * image1.shape[1])
+        output_arr = np.append(output_arr, err)
+    return output_arr
+
+def check_which_better():
+    image1 = cv2.imread(f"./output/crop.png")
+    image2 = cv2.imread('./output/apr_crop.png')
+
+    err = np.sum((image1.astype("float") - image2.astype("float")) ** 2)
+    err /= float(image1.shape[0] * image1.shape[1])
+    return err
+
+if __name__ == '__main__':
+    #create_crop(2,4)
+    create_apr_crop(20,10)
+    z = check_which_better_from_re_img()
+    print(z)
+    print(z.argmin()+1,z.min())
+    print(z.argmax()+1, z.max())
+    print(check_which_better())
+"""
