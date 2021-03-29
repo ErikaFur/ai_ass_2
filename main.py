@@ -1,16 +1,15 @@
 import numpy as np
-from PIL import Image, ImageDraw,ImageChops
+from PIL import Image, ImageDraw
 from os import listdir
 import random
-import math,operator
-import cv2
+import math
+import cv2 #this lib needs only for mask
 
-def open_image(color = (0,0,0,0)):
+def open_image(color = (0,0,0,0)): #debag function
     im_1 = Image.open("./resized_images/1.png")
     im_2 = Image.open("./resized_images/2.png")
     mask = Image.open('mask.png')
     new_im = Image.new('RGBA', size=(512,512), color=color)
-    #print(im_1.width)
     new_im.paste(im_1, (-15,0), mask)
     new_im.paste(im_2, (im_1.width - 50, 0),mask)
     return new_im
@@ -23,17 +22,13 @@ def save_mask():
 def make_mask(prototype):
     img = prototype
     pix = img.load()
-
     out = Image.new('RGB', size=img.size)
     draw = ImageDraw.Draw(out)
-
     width = img.size[0]
     height = img.size[1]
-    #print("------------------------------------------------------")
     for i in range(width):
         for j in range(height):
             a = pix[i, j]
-            #print(a)
             b = pix[i, j]
             c = pix[i, j]
             S = a + b + c
@@ -42,7 +37,6 @@ def make_mask(prototype):
             else:
                 a, b, c = 0, 0, 0
             draw.point((i, j), (a,b,c))
-    #print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
     return out.convert("L")
 
 def prepare_images(size:int=16):
@@ -74,16 +68,20 @@ def init_arr(size:int=16):
     output_arr = np.random.randint(len(listdir('./resized_images'))-1, size=(max_width+64//size-1,max_width-2))
     return output_arr+1
 
-def arr_to_image(arr, mask):
+def arr_to_image(arr, arr_imgs, mask):
     new_im = Image.new('RGBA', size=(512, 512), color=(0, 0, 0))
-
     for i in range(len(arr)):
         for j in range(len(arr[0])):
-            img = Image.open(f"./resized_images/{arr[i][j]}.png")
+            img = arr_imgs[arr[i][j]]
             new_im.paste(img,(j*img.width+img.width*(i%2)//2+img.width//4, i*(img.width-img.width//8)+img.width//4),mask)
     return new_im
 #(j*img.width-img.width*(i%2)//2,i*(img.width-img.width//8)) - position of block om image by using j(column) and i(row)
 def start_preparations(size_of_blocks:int = 16):
+    """
+    function which do preparations. 1) Prepare building cells images, 2) create initial arrays
+    :param size_of_blocks: size of cells images
+    :return: array of arrays of indexes of images
+    """
     prepare_images(size_of_blocks)
     x = init_arr(size_of_blocks)
     return x
@@ -101,18 +99,17 @@ def new_generation(best_previous, amount_of_genes:int = 2, amount_of_changes:int
             np.random.randint(0,images_amount)+1))
     return genes_location.reshape(amount_of_genes,amount_of_changes,3)
 
-def create_crop(i, j, arr, mask):
-    #(j * img.width - img.width * (i % 2) // 2, i * (img.width - img.width // 8))
-    #[22, 10, 22]
-    a = Image.open(f"./resized_images/{arr[i][j]}.png")
-    new_im = Image.new('RGBA', size=a.size, color=(0, 0, 0, 0))
-    new_im.paste(a,(0,0),mask)
-    new_im.save("./output/crop.png")
-
-def create_apr_crop(i,j,mask,size_of_img = 16):
-    #(j * img.width - img.width * (i % 2) // 2, i * (img.width - img.width // 8))
-    #[22, 10, 22]
-    a = Image.open("./input/input.png")
+def create_apr_crop(i,j,mask,size_of_img, inp_img):
+    """
+    function creates crop of inp_img image on indexes [i,j]
+    :param i: column index
+    :param j: row index
+    :param mask: mask
+    :param size_of_img: size of resized images
+    :param inp_img: image from which it is needed to take crop
+    :return: image (size_of_img x size_of_img)
+    """
+    a = inp_img
     w = size_of_img
     x = (j * w + w * (i % 2) // 2) + w // 4
     y = i * (w - w // 8) + w // 4
@@ -123,59 +120,13 @@ def create_apr_crop(i,j,mask,size_of_img = 16):
     # new_im.save("./output/apr_crop.png")
     return new_im
 
-
-def check_which_better_from_re_img():
-    output_arr = np.array([])
-    images_amount = len(listdir('./resized_images'))
-    for i in range(1,images_amount+1):
-        image1 = cv2.imread(f"./resized_images/{i}.png")
-        image2 = cv2.imread('./output/apr_crop.png')
-
-        err = np.sum((image1.astype("float") - image2.astype("float")) ** 2)
-        err /= float(image1.shape[0] * image1.shape[1])
-        output_arr = np.append(output_arr, err)
-    return output_arr
-
-def check_which_better():
+def check_error():
     image1 = cv2.imread(f"./output/crop.png")
     image2 = cv2.imread('./output/apr_crop.png')
 
     err = np.sum((image1.astype("float") - image2.astype("float")) ** 2)
     err /= float(image1.shape[0] * image1.shape[1])
     return err
-
-def mean_colour(input_img):
-    img = input_img.convert("RGB").load()
-    output = np.array([0, 0, 0])
-    count = 0
-    for i in range(input_img.size[0]):
-        for j in range(input_img.size[1]):
-            if img[j, i] != (0, 0, 0):
-                count += 1
-                output += img[j, i]
-                output += (1, 1, 1)
-    output //= count
-    heh = [hex(x)[2:] for x in output]
-    for i in range(3):
-        if len(heh[i]) == 1:
-            heh[i] = '0' + heh[i]
-    heh = heh[0] + heh[1] + heh[2]
-    return int(heh,16)
-
-
-def jf1():
-    d = {}
-    arr = np.array([])
-    images_amount = len(listdir('./resized_images'))
-    for i in range(1,images_amount+1):
-        img = Image.open(f'./resized_images/{i}.png')
-        a = mean_colour(img)
-        d[a] = i
-        arr = np.append(arr,a)
-    arr = np.sort(arr)
-
-    for i in range(images_amount):
-        print(int(arr[i]), i+1)
 
 def jf2(a):
     """
@@ -205,7 +156,7 @@ def jf2(a):
     min_err /= count
     return min_num, min_err
 
-def best_apr_image(size, mask):
+def best_apr_image(size, mask, input_img):
     """
     this function gets size of small images and mask and approximate
     and show best possible result
@@ -220,50 +171,60 @@ def best_apr_image(size, mask):
     size_x = max_width - 2
     for i in range(size_y):
         for j in range(size_x):
-            apr_img = create_apr_crop(i,j,mask,size)
+            apr_img = create_apr_crop(i,j,mask,size,input_img)
             number_of_reimg, error = jf2(apr_img)
-            print(i,j)
-            print(number_of_reimg, error)
+            #print(i,j)
+            #print(number_of_reimg, error)
             needed_img = Image.open(f'./resized_images/{number_of_reimg}.png')
             new_im.paste(needed_img,((j * w + w * (i % 2) // 2) + w // 4,i * (w - w // 8) + w // 4),mask)
     new_im.show()
 
+def break_input(size,mask,input_img):
+    """
+    divide image on cells
+    :param size: size of cells
+    :param mask: mask to delete black borders
+    :param input_img: input image for processing
+    :return: array of images on corresponding places
+    """
+    max_width = math.ceil(512 / size) + 1
+    size_y = max_width + 64 // size - 1  # size of arrays of small images arr[y][x]
+    size_x = max_width - 2
+    output_arr = []
+    for i in range(size_y):
+        output_arr.append([])
+        for j in range(size_x):
+            apr_img = create_apr_crop(i,j,mask,size, input_img)
+            output_arr[i].append(apr_img)
+            #print(i,j)
+    return output_arr
 
+def open_resized(mask):
+    """
+    function which returns array of resized images
+    :param mask: mask added as 0 element in array
+    :return: array of resized images
+    """
+    output_arr = [mask]
+    for i in range(1, 1 + len(listdir('./resized_images'))):
+        output_arr.append(Image.open(f"./resized_images/{i}.png"))
+    return output_arr
 #x = (j * w + w * (i % 2) // 2) + w // 4
 #y = i * (w - w // 8) + w // 4
+
 if __name__ == '__main__':
-    size = 8
+    size = 16
     x = start_preparations(size)
     ap_img = Image.open('./input/input.png')
     mask = Image.open('mask.png')
-    best_apr_image(size, mask)
+    input_cells = break_input(size, mask, ap_img)
+    building_cells = open_resized(mask)
+    input_cells[1][0].show()
+    #print(z)
     #arr_to_image(x, mask).save(f"./output/kek.png")
     #create_apr_crop(0,0,mask,size)
     #create_crop(2, 4, x, mask)
-    ap_img_c = Image.open('./output/apr_crop.png')
     exit()
-
-
-    #arr_to_image(x, mask).save(f"./output/kek.png")
-    #create_crop(2,4, 16)
-    #create_apr_crop(20,10, 16)
-    z = check_which_better_from_re_img()
-    print(z)
-    print(z.argmin()+1,z.min())
-    print(z.argmax()+1, z.max())
-    print(check_which_better())
-    #create_crop(2,4)
-    #create_apr_crop(0,0)
-    #random_placing(2000).save("./output/outputr.png")
-    #new_im = Image.new('RGBA', size=(512, 512), color=(153,153,255))
-    #new_im = open_image((153,153,255))
-
-    #x = start_preparations(16)
-    #for i in range(1):
-    #    arr = new_generation(x)
-    #print(arr)
-    #arr = np.array([[[22, 10, 22],[ 8, 17, 25],[35, 32,  5]],[[35,  6,  6,],[25,27, 19],[29, 15,  2]]])
-
 """
 def check_which_better_from_re_img():
     output_arr = np.array([])
