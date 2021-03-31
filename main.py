@@ -207,7 +207,7 @@ def error_chech(img_a, img_b):
         for j in range(a.size[1]):
             if img[j, i] != (0, 0, 0):
                 count += 1
-                output += (sum((np.array(img[j, i]) - np.array(imgb[j, i])) ** 2)) ** (1 / 2)
+                output += (sum((np.array(img[j, i]) - np.array(imgb[j, i])) ** 2))
     output /= count
     return output
 
@@ -240,7 +240,7 @@ def clean_population(genes, genes_err_list, sum_genes_err_list, arr_mask):
     sum_genes_err_list = np.delete(sum_genes_err_list, arr_mask, axis=0)
     return genes, genes_err_list, sum_genes_err_list
 
-def mutations(genes, genes_err_list, shape, amount_of_mutations, input_cells, building_cells):
+def mutations(genes, genes_err_list, sum_genes_err_list, shape, amount_of_mutations, input_cells, building_cells):
     remains = len(genes)
     for j in range(remains):
         new_gen = np.copy(genes[j])
@@ -248,7 +248,7 @@ def mutations(genes, genes_err_list, shape, amount_of_mutations, input_cells, bu
         for i in range(amount_of_mutations):
             y = np.random.randint(shape[0])
             x = np.random.randint(shape[1])
-            new_gen[y][x] = abs(new_gen[y][x] + np.random.randint(1,4))%(len(building_cells)-1)
+            new_gen[y][x] = np.random.randint(1,len(building_cells))
             new_genes_err_list[y][x] = error_chech(input_cells[y][x], building_cells[new_gen[y][x]])
         genes = np.append(genes,np.array([new_gen]),axis=0)
         genes_err_list = np.append(genes_err_list, np.array([new_genes_err_list]), axis=0)
@@ -258,7 +258,7 @@ def mutations(genes, genes_err_list, shape, amount_of_mutations, input_cells, bu
 
 
 if __name__ == '__main__':
-    size = 16
+    size = 8
     population = 10
     prepare_images(size)
     apr_img = Image.open('./input/input.png') #initial picture
@@ -276,15 +276,15 @@ if __name__ == '__main__':
         genes_err_list = np.append(genes_err_list, [gene_err_list], axis=0)
     sum_genes_err_list = sum_err_list(genes_err_list)
     print('end of the preparations')
-    for i in range(10000):
-        genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, img_shape, 50, input_cells, building_cells)
+    init_err = max(sum_genes_err_list)
+    for i in range(50001):
         genes, genes_err_list, sum_genes_err_list = clean_population(genes, genes_err_list, sum_genes_err_list,
                                                                      del_half(sum_genes_err_list))
-        if i%100 == 0:
-            print(sum_genes_err_list.argmax())
-            print(genes[sum_genes_err_list.argmax()])
+        genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, sum_genes_err_list, img_shape, 5, input_cells, building_cells)
+        if i%1000 == 0:
             arr_to_image(genes[sum_genes_err_list.argmax()], building_cells, mask).save(f'./output/{i}.png')
-        print(i+1, max(sum_genes_err_list))
+        print(genes.shape, genes_err_list.shape, sum_genes_err_list.shape)
+        print(i+1, "current error:",max(sum_genes_err_list), "improvement:", (1-max(sum_genes_err_list)/init_err)*100,'%')
     for i in range(len(genes)):
         arr_to_image(genes[i],input_cells,mask).save(f'./output/{i}.png')
 
