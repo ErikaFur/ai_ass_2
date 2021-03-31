@@ -54,20 +54,6 @@ def prepare_images(size:int=16):
         new_img.save(f"./resized_images/{i}")
     save_mask()
 
-
-
-def random_placing(n:int = 80, img_out = Image.new('RGBA', size=(512,512))):
-    mask = Image.open('mask.png')
-    #img_out = Image.open("./output/output.png")
-    images_c = len(listdir('./resized_images'))
-    for i in range(n):
-        img = Image.open(f"./resized_images/{random.randint(1, images_c)}.png")
-        x = random.randint(0-img.size[0]/2,512-img.size[0]/2)
-        y = random.randint(0-img.size[1]/2,512-img.size[1]/2)
-        img_out.paste(img, (x, y), mask)
-    return  img_out
-
-
 #x = (j * w + w * (i % 2) // 2) + w // 4
 #y = i * (w - w // 8) + w // 4
 def init_arr(size:int=16):
@@ -117,7 +103,7 @@ def create_apr_crop(i,j,mask,size_of_img, inp_img):
     # new_im.save("./output/apr_crop.png")
     return new_im
 
-def jf2(a):
+def jf2(a, bc):
     """
     this function returns number of image in folder (starting with 1)
     which is best suited and error for it.
@@ -129,7 +115,7 @@ def jf2(a):
     min_num = 0
     min_err = 100000000
     for k in range(1, 1 + len(listdir('./resized_images'))):
-        b = Image.open(f"./resized_images/{k}.png")
+        b = bc[k]
         b = b.convert('RGB')
         imgb = b.load()
         output = 0
@@ -145,7 +131,7 @@ def jf2(a):
     min_err /= count
     return min_num, min_err
 
-def best_apr_image(size, mask, input_img):
+def best_apr_image(size, mask, input_img, build_cells):
     """
     this function gets size of small images and mask and approximate
     and show best possible result
@@ -158,15 +144,18 @@ def best_apr_image(size, mask, input_img):
     new_im = Image.new('RGB', size=(512,512), color=(0, 0, 0))
     size_y = max_width + 64 // size - 1  # size of arrays of small images arr[y][x]
     size_x = max_width - 2
+    output = np.zeros((size_y,size_x), dtype=int)
     for i in range(size_y):
         for j in range(size_x):
             apr_img = create_apr_crop(i,j,mask,size,input_img)
-            number_of_reimg, error = jf2(apr_img)
-            #print(i,j)
+            number_of_reimg, error = jf2(apr_img, building_cells)
+            print(i,j)
+            output[i][j] = number_of_reimg
             #print(number_of_reimg, error)
-            needed_img = Image.open(f'./resized_images/{number_of_reimg}.png')
+            needed_img = build_cells[number_of_reimg]
             new_im.paste(needed_img,((j * w + w * (i % 2) // 2) + w // 4,i * (w - w // 8) + w // 4),mask)
     new_im.show()
+    return output
 
 def break_input(size,mask,input_img):
     """
@@ -222,34 +211,85 @@ def error_chech(img_a, img_b):
     output /= count
     return output
 
-def new_generation(best_previous, amount_of_genes:int = 2, amount_of_changes:int=3):
-    x = len(best_previous)
-    y = len(best_previous[0])
-    genes_location = np.array([])
-    images_amount = len(listdir('./resized_images'))
-    for i in range(1,amount_of_genes+1):
-        for j in range(amount_of_changes):
-            #arr_to_image(copy).save(f"./genes/{i}.png")
-            genes_location = np.append(genes_location, (np.random.randint(0,x),
-            np.random.randint(0,y),
-            np.random.randint(0,images_amount)+1))
-    return genes_location.reshape(amount_of_genes,amount_of_changes,3)
+def create_init_arrs(size, amount):
+    output_arr = np.array([init_arr(size)])
+    for i in range(amount-1):
+        output_arr =  np.append(output_arr, [init_arr(size)], axis=0)
+    return output_arr
+
+def err_list_from(input_cells, building_cells, gen, shape):
+    output_err_arr = np.array([])
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            output_err_arr = np.append(output_err_arr, error_chech(input_cells[i][j],building_cells[gen[i][j]]))
+    return np.reshape(output_err_arr, shape)
+
+def sum_err_list(list_err):
+    output = np.array(np.sum(list_err[0]))
+    for i in range(1, len(list_err)):
+        output = np.append(output,np.sum(list_err[i]))
+    return output
+
+def del_half(err_list):
+    output = np.argwhere(err_list > np.median(err_list))
+    return output.T[0]
+
+def clean_population(genes, genes_err_list, sum_genes_err_list, arr_mask):
+    genes = np.delete(genes, arr_mask, axis = 0)
+    genes_err_list = np.delete(genes_err_list, arr_mask, axis = 0)
+    sum_genes_err_list = np.delete(sum_genes_err_list, arr_mask, axis=0)
+    return genes, genes_err_list, sum_genes_err_list
+
+def mutations(genes, genes_err_list, shape, amount_of_mutations, input_cells, building_cells):
+    remains = len(genes)
+    for j in range(remains):
+        new_gen = np.copy(genes[j])
+        new_genes_err_list = np.copy(genes_err_list[j])
+        for i in range(amount_of_mutations):
+            y = np.random.randint(shape[0])
+            x = np.random.randint(shape[1])
+            new_gen[y][x] = abs(new_gen[y][x] + np.random.randint(1,4))%(len(building_cells)-1)
+            new_genes_err_list[y][x] = error_chech(input_cells[y][x], building_cells[new_gen[y][x]])
+        genes = np.append(genes,np.array([new_gen]),axis=0)
+        genes_err_list = np.append(genes_err_list, np.array([new_genes_err_list]), axis=0)
+    sum_err = sum_err_list(genes_err_list)
+    return genes, genes_err_list, sum_err
+
+
 
 if __name__ == '__main__':
     size = 16
+    population = 10
     prepare_images(size)
-    ap_img = Image.open('./input/input.png')
-    mask = Image.open('mask.png')
-    input_cells = break_input(size, mask, ap_img)
-    building_cells = open_resized(mask)
+    apr_img = Image.open('./input/input.png') #initial picture
+    mask = Image.open('mask.png') #mask
+    input_cells = break_input(size, mask, apr_img) # arrays of images of input's cells (size shape)
+    img_shape = (len(input_cells),len(input_cells[0])) # shape of picture
+    building_cells = open_resized(mask) # array of images of building blocks (0's element is a mask)
+    #end of preparations
+    print('preparations')
 
-    x = init_arr(size)
+    genes = create_init_arrs(size, population) # arrays of number of building cells (size (population, shape)
+    genes_err_list = np.array([err_list_from(input_cells, building_cells, genes[0], img_shape)]) #(size (population, shape)
+    for i in range(1, population):
+        gene_err_list = err_list_from(input_cells, building_cells, genes[i], img_shape)
+        genes_err_list = np.append(genes_err_list, [gene_err_list], axis=0)
+    sum_genes_err_list = sum_err_list(genes_err_list)
+    print('end of the preparations')
+    for i in range(10000):
+        genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, img_shape, 50, input_cells, building_cells)
+        genes, genes_err_list, sum_genes_err_list = clean_population(genes, genes_err_list, sum_genes_err_list,
+                                                                     del_half(sum_genes_err_list))
+        if i%100 == 0:
+            print(sum_genes_err_list.argmax())
+            print(genes[sum_genes_err_list.argmax()])
+            arr_to_image(genes[sum_genes_err_list.argmax()], building_cells, mask).save(f'./output/{i}.png')
+        print(i+1, max(sum_genes_err_list))
+    for i in range(len(genes)):
+        arr_to_image(genes[i],input_cells,mask).save(f'./output/{i}.png')
 
+    #building_cells[x[0][0]].show()
+    #arr_to_image(x,building_cells,mask).show()
     #building_cells[3].show()
-    print(error_chech(input_cells[1][0],building_cells[22]))
-    print(error_chech(input_cells[1][0], input_cells[1][0]))
-    #print(z)
-    #arr_to_image(x, mask).save(f"./output/kek.png")
-    #create_apr_crop(0,0,mask,size)
-    #create_crop(2, 4, x, mask)
-    exit()
+    #print(error_chech(input_cells[1][0], building_cells[22]))
+    #print(error_chech(input_cells[1][0], input_cells[1][0]))
