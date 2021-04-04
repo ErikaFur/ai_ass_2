@@ -2,11 +2,12 @@ import numpy as np
 from PIL import Image
 from functions import prepare_images, break_input, open_resized, create_init_arrs, err_list_from, sum_err_list, \
     clean_population, mutations, del_half, arr_to_image
+from options import SIZE, POPULATION, OUTPUT_RATE
 
 if __name__ == '__main__':
     print('preparations')
-    size = 8
-    population = 10
+    size = SIZE
+    population = POPULATION
     prepare_images(size)
     apr_img = Image.open('./input/input.png')  # initial picture
     mask = Image.open('mask.png')  # mask
@@ -28,7 +29,7 @@ if __name__ == '__main__':
                                                                      del_half(sum_genes_err_list))
         genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, sum_genes_err_list, img_shape, 4,
                                                               input_cells, building_cells)
-        if i % 5000 == 0:
+        if i % OUTPUT_RATE == 0:
             arr_to_image(genes[sum_genes_err_list.argmax()], building_cells, mask).save(f'./output/{i}.png')
             print(i + 1, "current error:", max(sum_genes_err_list), "improvement:",
                   (1 - max(sum_genes_err_list) / init_err) * 100, '%')
