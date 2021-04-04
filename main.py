@@ -2,7 +2,7 @@ import numpy as np
 from PIL import Image
 from functions import prepare_images, break_input, open_resized, create_init_arrs, err_list_from, sum_err_list, \
     clean_population, mutations, del_half, arr_to_image
-from options import SIZE, POPULATION, OUTPUT_RATE
+from options import SIZE, POPULATION, OUTPUT_RATE, EPOCHES
 
 if __name__ == '__main__':
     print('preparations')
@@ -24,10 +24,10 @@ if __name__ == '__main__':
     # end of preparations
     print('end of the preparations')
     init_err = max(sum_genes_err_list)
-    for i in range(100001):
+    for i in range(1 + EPOCHES):
         genes, genes_err_list, sum_genes_err_list = clean_population(genes, genes_err_list, sum_genes_err_list,
                                                                      del_half(sum_genes_err_list))
-        genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, sum_genes_err_list, img_shape, 4,
+        genes, genes_err_list, sum_genes_err_list = mutations(genes, genes_err_list, img_shape, 4,
                                                               input_cells, building_cells)
         if i % OUTPUT_RATE == 0:
             arr_to_image(genes[sum_genes_err_list.argmax()], building_cells, mask).save(f'./output/{i}.png')

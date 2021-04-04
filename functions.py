@@ -199,6 +199,7 @@ def error_chech(img_a, img_b):
     output /= count
     return output
 
+
 def create_init_arrs(size, amount):
     """
     function creates initial random arrays
